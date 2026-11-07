@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>清原式スクリーナー｜結果ダッシュボード</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #141720;
+    --border:   #252a38;
+    --accent:   #e8c94a;
+    --accent2:  #4a9ee8;
+    --green:    #3ecf72;
+    --red:      #e85555;
+    --text:     #d4d8e8;
+    --muted:    #606880;
+    --gold:     #f5d06a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* グリッド背景 */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(232,201,74,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,201,74,.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ヘッダー */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    margin-bottom: 36px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .logo-block h1 {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 28px;
+    color: var(--accent);
+    letter-spacing: .02em;
+  }
+  .logo-block p {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .formula-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--accent2);
+    line-height: 1.6;
+  }
+  .formula-pill span { color: var(--muted); display: block; font-size: 10px; margin-bottom: 2px; }
+
+  /* KPIカード列 */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .3s;
+  }
+  .kpi-card:hover { border-color: var(--accent); }
+  .kpi-card:hover::after { transform: scaleX(1); }
+
+  .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .kpi-value { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500; margin-top: 8px; color: var(--text); }
+  .kpi-value.gold { color: var(--gold); }
+  .kpi-value.green { color: var(--green); }
+
+  /* ファイルドロップ */
+  #drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 36px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    margin-bottom: 32px;
+  }
+  #drop-zone:hover, #drop-zone.over {
+    border-color: var(--accent);
+    background: rgba(232,201,74,.05);
+  }
+  #drop-zone input { display: none; }
+  #drop-zone .icon { font-size: 36px; margin-bottom: 10px; }
+  #drop-zone p { color: var(--muted); font-size: 13px; }
+  #drop-zone strong { color: var(--accent); }
+
+  /* ツールバー */
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .toolbar label { color: var(--muted); font-size: 12px; }
+  .toolbar input[type=range] {
+    accent-color: var(--accent);
+    width: 120px;
+  }
+  .toolbar select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  #ratio-val {
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+    font-size: 13px;
+    min-width: 32px;
+  }
+  .btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn.outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  /* Run panel inputs */
+  .run-input { display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+  .run-input label { font-size:12px; color:var(--muted); }
+  .run-input .unit { font-size:12px; color:var(--muted); margin-left:6px; }
+  .run-inputs { display:flex; flex-direction:column; gap:8px; min-width:260px; max-width:420px; }
+  .run-actions { margin-left:auto; display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+
+  /* テーブル */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: auto;
+  }
+
+  table {
+    width: 100%;
+    min-width: 1100px;
+    border-collapse: collapse;
+  }
+  thead tr { background: rgba(255,255,255,.03); }
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  th:hover { color: var(--text); }
+  th .sort-icon { margin-left: 4px; opacity: .4; }
+  th.active .sort-icon { opacity: 1; color: var(--accent); }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr { transition: background .1s; }
+  tr:hover td { background: rgba(255,255,255,.025); }
+
+  td.mono { font-family: 'DM Mono', monospace; }
+  td.right { text-align: right; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+  }
+  .badge.good { background: rgba(245,208,106,.15); color: var(--gold); }
+  .badge.watch    { background: rgba(74,158,232,.12); color: var(--accent2); }
+
+  .ratio-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ratio-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 80px;
+  }
+  .ratio-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width .4s ease;
+  }
+
+  /* バーチャート */
+  .chart-section {
+    margin-bottom: 32px;
+  }
+  .section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  #bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 180px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 16px 40px;
+    overflow-x: auto;
+  }
+  .bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 36px;
+    max-width: 80px;
+    height: 100%;
+    justify-content: flex-end;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: opacity .15s;
+    position: relative;
+  }
+  .bar:hover { opacity: .8; }
+  .bar-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    word-break: break-all;
+    line-height: 1.2;
+  }
+
+  /* 空状態 */
+  #empty-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--muted);
+  }
+  #empty-state .big { font-size: 40px; margin-bottom: 12px; }
+
+  /* フッター */
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 60px;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo-block">
+      <h1>Kiyohara Screener</h1>
+      <p>清原達郎式 ネットキャッシュ比率スクリーナー ／ 結果ダッシュボード</p>
+    </div>
+    <div class="formula-pill">
+      <span>清原式 ネットキャッシュ比率</span>
+      (流動資産 + 投資有価証券 × 0.7 − 負債合計) ÷ 時価総額
+    </div>
+  </header>
+
+  <!-- KPI -->
+  <div class="kpi-row" id="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">分析銘柄数</div>
+      <div class="kpi-value" id="kpi-total">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">★ 割安候補 (≥1.0)</div>
+      <div class="kpi-value gold" id="kpi-good">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">最高比率</div>
+      <div class="kpi-value mono" id="kpi-max">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">平均比率</div>
+      <div class="kpi-value mono" id="kpi-avg">—</div>
+    </div>
+  </div>
+
+  <!-- ファイルドロップ -->
+  <div id="run-panel" style="margin-bottom:18px;">
+      <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+        <div class="run-inputs">
+          <div class="run-input">
+            <label for="ui_api_key">EDINET APIキー（サーバー側で管理・入力不要）</label>
+            <input id="ui_api_key" type="text" placeholder="サーバーで管理 (入力不要)" disabled style="width:100%; padding:6px; color:var(--muted)" />
+          </div>
+
+          <div class="run-input">
+            <label for="ui_days">期間</label>
+            <div style="display:flex; align-items:center;"><input id="ui_days" type="number" value="30" min="1" style="width:80px; padding:6px" /><span class="unit">日</span></div>
+          </div>
+
+          <div class="run-input">
+            <label for="ui_ratio">比率閾値</label>
+              <div style="display:flex; align-items:center;"><input id="ui_ratio" type="number" step="0.1" value="1.0" style="width:80px; padding:6px" /><span class="unit">(例: 1.0)</span>
+            </div>
+          </div>
+
+          <div class="run-input">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                <span style="font-size:11px; color:var(--muted); margin-bottom:4px;">時価総額下限</span>
+                <input id="ui_min_cap" type="number" step="1" value="20" style="width:100px; padding:6px" />
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                <span style="font-size:11px; color:var(--muted); margin-bottom:4px;">時価総額上限</span>
+                <input id="ui_max_cap" type="number" step="1" value="500" style="width:100px; padding:6px" />
+              </div>
+              <span class="unit">億円</span>
+            </div>
+          </div>
+
+          <div class="run-input">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                <span style="font-size:11px; color:var(--muted); margin-bottom:4px;">PER下限</span>
+                <input id="ui_min_pe" type="number" step="0.1" placeholder="min" style="width:100px; padding:6px" />
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                <span style="font-size:11px; color:var(--muted); margin-bottom:4px;">PER上限</span>
+                <input id="ui_max_pe" type="number" step="0.1" placeholder="max" value="10" style="width:100px; padding:6px" />
+              </div>
+              <span class="unit">倍</span>
+            </div>
+          </div>
+
+          <div class="run-input">
+            <label for="ui_sec_code">証券コード</label>
+            <input id="ui_sec_code" type="text" placeholder="例: 4287" style="width:100%; padding:6px" />
+          </div>
+        </div>
+
+        <div class="run-actions">
+          <label style="color:var(--muted); font-size:13px; display:flex; align-items:center; gap:6px"><input id="ui_verbose" type="checkbox"> 詳細ログ</label>
+          <button id="run-btn" class="btn">Run Screening</button>
+        </div>
+      </div>
+    <pre id="run-logs" style="display:none; background:var(--surface); border:1px solid var(--border); padding:10px; margin-top:12px; max-height:240px; overflow:auto; color:var(--muted);"></pre>
+  </div>
+
+  <div id="drop-zone" onclick="document.getElementById('csv-input').click()">
+    <input type="file" id="csv-input" accept=".csv">
+    <div class="icon">📂</div>
+    <p><strong>CSVファイルをドロップ</strong> またはクリックしてアップロード</p>
+    <p style="margin-top:6px; font-size:11px;">kiyohara_results_YYYY-MM-DD.csv などのスクリーナー出力に対応</p>
+  </div>
+
+  <!-- バーチャート -->
+  <div class="chart-section" id="chart-section" style="display:none">
+    <div class="section-title">銘柄別 ネットキャッシュ比率</div>
+    <div id="bar-chart"></div>
+  </div>
+
+  <!-- テーブルツールバー -->
+  <div class="toolbar" id="table-toolbar" style="display:none">
+    <label>比率フィルタ ≥</label>
+    <input type="range" id="ratio-slider" min="0" max="2" step="0.05" value="0">
+    <span id="ratio-val">0.00</span>
+    <select id="sort-select">
+      <option value="ratio-desc">比率 ↓</option>
+      <option value="ratio-asc">比率 ↑</option>
+      <option value="cap-asc">時価総額 ↑</option>
+      <option value="cap-desc">時価総額 ↓</option>
+    </select>
+    <button class="btn outline" onclick="exportCSV()">CSV出力</button>
+  </div>
+
+  <!-- テーブル -->
+  <div id="table-area">
+    <div id="empty-state">
+      <div class="big">📈</div>
+      <p>CSVファイルをアップロードすると結果が表示されます</p>
+      <p style="margin-top:6px; font-size:11px; opacity:.6">
+        kiyohara_screener.py を実行して生成したCSVに対応しています
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  清原達郎式スクリーニング ／ 本ツールは情報提供のみを目的としており、投資助言ではありません<br>
+  データはyfinance・EDINETを利用。正確性を保証するものではありません。
+</footer>
+
+<script>
+// ===== データ =====
+let rawData = [];
+let filteredData = [];
+let sortState = { key: null, dir: 'desc' }; // current column sort state
+
+// ===== サンプルデータ（CSVアップロード前のデモ用） =====
+const SAMPLE = [
+  { code: "4668", name: "明光ネットワーク", ratio: 0.693, cap: 176.2, nc: 122.1, ca: 122.1, inv: 0, liab: 0 },
+  { code: "2930", name: "北の達人コーポレーション", ratio: 0.417, cap: 191.0, nc: 79.6, ca: 79.6, inv: 0, liab: 0 },
+  { code: "4436", name: "ミンカブ・ジ・インフォノイド", ratio: 0.310, cap: 65.8, nc: 20.4, ca: 20.4, inv: 0, liab: 0 },
+  { code: "3053", name: "ペッパーフードサービス", ratio: 0.301, cap: 112.4, nc: 33.9, ca: 33.9, inv: 0, liab: 0 },
+  { code: "4493", name: "サイバーセキュリティクラウド", ratio: 0.274, cap: 171.0, nc: 46.8, ca: 46.8, inv: 0, liab: 0 },
+];
+
+// ===== CSVパーサー =====
+function parseCSV(text) {
+  // BOM除去
+  text = text.replace(/^\uFEFF/, '');
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim());
+
+  return lines.slice(1).map(line => {
+    const cols = line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = cols[i]?.trim() ?? ''; });
+    return obj;
+  }).filter(r => r[headers[0]]);
+}
+
+function normalizeRow(r) {
+  // kiyohara_screener.py の出力専用に正規化
+  const code = (r['銘柄コード'] || '').replace('.T','').trim();
+  const name = r['企業名'] || code;
+  const ratio = parseFloat(r['ネットキャッシュ比率'] || '0');
+  const cap   = parseFloat(r['時価総額(億円)'] || '0');
+  const nc    = parseFloat(r['ネットキャッシュ(億円)'] || '0');
+  const ca    = parseFloat(r['流動資産(億円)'] || '0');
+  const inv   = parseFloat(r['投資有価証券(億円)'] || '0');
+  const liab  = parseFloat(r['負債合計(億円)'] || '0');
+  const per   = parseFloat(r['PER'] || '0');
+  return { code, name, ratio, cap, nc, ca, inv, liab, per };
+}
+
+// ===== KPI更新 =====
+function updateKPI(data) {
+  document.getElementById('kpi-total').textContent = data.length;
+  document.getElementById('kpi-good').textContent = data.filter(d => d.ratio >= 1.0).length;
+  const ratios = data.map(d => d.ratio).filter(v => !isNaN(v));
+  document.getElementById('kpi-max').textContent = ratios.length ? Math.max(...ratios).toFixed(4) : '—';
+  document.getElementById('kpi-avg').textContent = ratios.length ? (ratios.reduce((a,b)=>a+b,0)/ratios.length).toFixed(4) : '—';
+}
+
+// ===== バーチャート =====
+function renderChart(data) {
+  const el = document.getElementById('bar-chart');
+  const section = document.getElementById('chart-section');
+  if (!data.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const maxRatio = Math.max(...data.map(d => d.ratio), 1.5);
+  el.innerHTML = '';
+
+  data.slice(0, 30).forEach(d => {
+    const pct = Math.min(d.ratio / maxRatio, 1) * 100;
+    const color = d.ratio >= 1.0 ? '#f5d06a' : '#4a9ee8';
+
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    col.title = `${d.name}\n比率: ${d.ratio.toFixed(4)}`;
+    col.innerHTML = `
+      <div class="bar" style="height:${pct}%; background:${color}; min-height:4px"></div>
+      <div class="bar-label">${d.code}</div>
+    `;
+    el.appendChild(col);
+  });
+}
+
+// ===== テーブル =====
+function renderTable(data) {
+  const area = document.getElementById('table-area');
+  const toolbar = document.getElementById('table-toolbar');
+
+  if (!data.length) {
+    area.innerHTML = `<div id="empty-state"><div class="big">🔍</div><p>条件に一致する銘柄がありません</p></div>`;
+    return;
+  }
+  toolbar.style.display = 'flex';
+
+  const maxRatio = Math.max(...data.map(d => d.ratio), 1);
+  const rows = data.map((d, i) => {
+    const pct = Math.min(d.ratio / Math.max(maxRatio, 0.01) * 100, 100).toFixed(1);
+    const color = d.ratio >= 1.0 ? '#f5d06a' : '#4a9ee8';
+    const badge = d.ratio >= 1.0
+      ? '<span class="badge good">★ 割安</span>'
+        : '<span class="badge watch">👁 Watch</span>';
+
+    return `<tr>
+      <td class="mono right">${i+1}</td>
+      <td class="mono">${d.code}</td>
+      <td>${d.name || '—'}</td>
+      <td>${badge}</td>
+      <td>
+        <div class="ratio-bar">
+          <div class="ratio-track"><div class="ratio-fill" style="width:${pct}%; background:${color}"></div></div>
+          <span class="mono" style="color:${color}; min-width:52px">${d.ratio.toFixed(4)}</span>
+        </div>
+      </td>
+      <td class="mono right">${isNaN(d.cap) ? '—' : d.cap.toFixed(1)}</td>
+      <td class="mono right" style="color:${d.nc>=0?'#3ecf72':'#e85555'}">${isNaN(d.nc) ? '—' : d.nc.toFixed(1)}</td>
+      <td class="mono right">${isNaN(d.ca) ? '—' : d.ca.toFixed(1)}</td>
+      <td class="mono right">${isNaN(d.inv) ? '—' : d.inv.toFixed(1)}</td>
+      <td class="mono right">${isNaN(d.liab) ? '—' : d.liab.toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+
+  area.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th data-key="rank"># <span class="sort-icon">⇵</span></th>
+          <th data-key="code">コード <span class="sort-icon">⇵</span></th>
+          <th data-key="name">企業名 <span class="sort-icon">⇵</span></th>
+          <th>判定</th>
+          <th data-key="ratio">ネットキャッシュ比率 <span class="sort-icon">⇵</span></th>
+          <th data-key="cap" class="right">時価総額(億) <span class="sort-icon">⇵</span></th>
+          <th data-key="nc" class="right">NC(億) <span class="sort-icon">⇵</span></th>
+          <th data-key="ca" class="right">流動資産(億) <span class="sort-icon">⇵</span></th>
+          <th data-key="inv" class="right">投資有価証(億) <span class="sort-icon">⇵</span></th>
+          <th data-key="liab" class="right">負債合計(億) <span class="sort-icon">⇵</span></th>
+          <th data-key="per" class="right">PER <span class="sort-icon">⇵</span></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  initTableSorting();
+}
+
+function applySortAndRender() {
+  if (!sortState.key) {
+    renderTable(filteredData);
+    return;
+  }
+  const k = sortState.key;
+  const dir = sortState.dir;
+  const copy = filteredData.slice();
+  copy.sort((a,b) => {
+    const va = a[k];
+    const vb = b[k];
+    if (typeof va === 'number' && typeof vb === 'number') return dir === 'asc' ? va - vb : vb - va;
+    return ('' + va).localeCompare('' + vb, 'ja') * (dir === 'asc' ? 1 : -1);
+  });
+  renderTable(copy);
+}
+
+function initTableSorting() {
+  const ths = document.querySelectorAll('.table-wrap table thead th');
+  ths.forEach(th => {
+    const key = th.dataset.key;
+    if (!key) return;
+    th.classList.toggle('active', sortState.key === key);
+    th.onclick = () => {
+      if (sortState.key === key) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+      else { sortState.key = key; sortState.dir = 'desc'; }
+      ths.forEach(t => t.classList.remove('active'));
+      th.classList.add('active');
+      applySortAndRender();
+    };
+  });
+}
+
+// ===== フィルタ & ソート =====
+function applyFilters() {
+  const minRatio = parseFloat(document.getElementById('ratio-slider').value);
+  const sort = document.getElementById('sort-select').value;
+
+  let data = rawData.filter(d => d.ratio >= minRatio);
+
+  if      (sort === 'ratio-desc') data.sort((a,b) => b.ratio - a.ratio);
+  else if (sort === 'ratio-asc')  data.sort((a,b) => a.ratio - b.ratio);
+  else if (sort === 'cap-asc')    data.sort((a,b) => a.cap - b.cap);
+  else if (sort === 'cap-desc')   data.sort((a,b) => b.cap - a.cap);
+
+  filteredData = data;
+  updateKPI(data);
+  renderChart(data);
+  applySortAndRender();
+}
+
+// ===== CSV読み込み =====
+function loadCSV(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const parsed = parseCSV(e.target.result).map(normalizeRow).filter(d => !isNaN(d.ratio));
+    if (!parsed.length) { alert('有効なデータが見つかりませんでした。'); return; }
+    rawData = parsed;
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('ratio-slider').value = 0;
+    document.getElementById('ratio-val').textContent = '0.00';
+    applyFilters();
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ===== CSV出力 =====
+function exportCSV() {
+  if (!filteredData.length) return;
+  const headers = ['銘柄コード','企業名','ネットキャッシュ比率','時価総額(億円)','ネットキャッシュ(億円)','流動資産(億円)','投資有価証券(億円)','負債合計(億円)','PER'];
+  const rows = filteredData.map(d => [d.code, d.name, d.ratio, d.cap, d.nc, d.ca, d.inv, d.liab, d.per].join(','));
+  const blob = new Blob(['\uFEFF' + [headers.join(','), ...rows].join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kiyohara_filtered_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ===== イベント =====
+document.getElementById('csv-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadCSV(e.target.files[0]);
+});
+
+// ===== フロントからサーバーでスクリーニングを実行 =====
+document.getElementById('run-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('run-btn');
+  const logsEl = document.getElementById('run-logs');
+
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  logsEl.style.display = '';
+  logsEl.textContent = 'ジョブを起動しています...\n';
+  const payload = {
+    days: parseInt(document.getElementById('ui_days').value, 10) || 30,
+    ratio: parseFloat(document.getElementById('ui_ratio').value) || 1.0,
+    max_cap: parseFloat(document.getElementById('ui_max_cap').value) || 500,
+    min_cap: parseFloat(document.getElementById('ui_min_cap').value) || 20,
+    min_pe: document.getElementById('ui_min_pe').value !== '' ? parseFloat(document.getElementById('ui_min_pe').value) : null,
+    max_pe: document.getElementById('ui_max_pe').value !== '' ? parseFloat(document.getElementById('ui_max_pe').value) : null,
+    sec_code: document.getElementById('ui_sec_code').value.trim() || null,
+    verbose: document.getElementById('ui_verbose').checked,
+  };
+
+  try {
+    const resp = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      logsEl.textContent = JSON.stringify(data);
+      alert('サーバー実行に失敗しました');
+      btn.disabled = false;
+      btn.textContent = 'Run Screening';
+      return;
+    }
+
+    const jobId = data.job_id;
+    logsEl.textContent += `ジョブID: ${jobId}\n`;
+
+    // Poll status
+    let pollHandle = null;
+    const stopPolling = () => { if (pollHandle) clearInterval(pollHandle); };
+
+    const handleStatus = async () => {
+      try {
+        const sresp = await fetch(`/api/status/${jobId}`);
+        const sdata = await sresp.json();
+        if (!sdata.ok) {
+          logsEl.textContent += JSON.stringify(sdata) + '\n';
+          stopPolling();
+          btn.disabled = false;
+          btn.textContent = 'Run Screening';
+          return;
+        }
+
+        // update logs
+        logsEl.textContent = sdata.logs || '';
+        logsEl.scrollTop = logsEl.scrollHeight;
+
+        // update partial results into table
+        if (sdata.partial && sdata.partial.length) {
+          rawData = sdata.partial.map(normalizeRow).filter(d => !isNaN(d.ratio));
+          document.getElementById('drop-zone').style.display = 'none';
+          document.getElementById('ratio-slider').value = 0;
+          document.getElementById('ratio-val').textContent = '0.00';
+          applyFilters();
+        }
+
+        if (sdata.status === 'finished') {
+          stopPolling();
+          btn.disabled = false;
+          btn.textContent = 'Run Screening';
+          if (sdata.csv) {
+            const link = document.createElement('a');
+            link.href = `/outputs/${encodeURIComponent(sdata.csv)}`;
+            link.textContent = 'CSVをダウンロード';
+            link.className = 'btn outline';
+            link.style.marginLeft = '8px';
+            logsEl.appendChild(document.createElement('br'));
+            logsEl.appendChild(link);
+          }
+        } else if (sdata.status === 'failed') {
+          stopPolling();
+          btn.disabled = false;
+          btn.textContent = 'Run Screening';
+          logsEl.textContent += '\nジョブが失敗しました\n';
+        }
+      } catch (e) {
+        logsEl.textContent += '\n通信エラー: ' + e + '\n';
+      }
+    };
+
+    // start immediate then interval
+    await handleStatus();
+    pollHandle = setInterval(handleStatus, 1500);
+
+  } catch (e) {
+    logsEl.textContent = 'Error: ' + e;
+    btn.disabled = false;
+    btn.textContent = 'Run Screening';
+  }
+});
+
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  if (e.dataTransfer.files[0]) loadCSV(e.dataTransfer.files[0]);
+});
+
+document.getElementById('ratio-slider').addEventListener('input', e => {
+  document.getElementById('ratio-val').textContent = parseFloat(e.target.value).toFixed(2);
+  applyFilters();
+});
+document.getElementById('sort-select').addEventListener('change', applyFilters);
+
+// 初期表示は空のまま（CSVをアップロードしてください）
+rawData = [];
+updateKPI(rawData);
+</script>
+</body>
+</html>
